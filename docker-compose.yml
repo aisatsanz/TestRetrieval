@@ -9,7 +9,7 @@ services:
       - ./models:/app/models
     environment:
       - PYTHONPATH=/app
-    command: python simple_main.py
+    command: python3 -m app.main
     
   streamlit:
     build: .

@@ -44,30 +44,26 @@ async def predict(
         with torch.no_grad():
             vec = extractor.encode(tensor)           # (1, D)
         faiss.normalize_L2(vec)
-        print("vec-norm:", float(np.linalg.norm(vec)))
-        D, I = index.search(vec, 5) 
+        D, I = index.search(vec, 5 + 5)  # чуть больше, чтобы после фильтрации осталось 5
+
         query_name = Path(file.filename).name
         results = []
         for rank, idx in enumerate(I[0]):
             cand_name = Path(paths[idx]).name
-            if cand_name == query_name:        # пропускаем саму себя
+            if cand_name == query_name:
                 continue
             results.append({
                 "image_path": str(paths[idx]),
                 "similarity": float(D[0][rank])
             })
-            if len(results) == 5:              # набрали top 5
+            if len(results) == 5:
                 break
+
     except Exception as e:
-        import traceback, sys
+        import traceback
         traceback.print_exc()
         raise HTTPException(500, f"faiss error: {e}")
 
-    results = [
-        {"image_path": str(paths[i]),
-         "similarity": float(D[0][rank])}
-        for rank, i in enumerate(I[0])
-    ]
     return JSONResponse({"model": model, "results": results})
 
 

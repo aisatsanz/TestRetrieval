@@ -37,7 +37,6 @@ if not model_list:
     st.sidebar.error("Модели не найдены"); st.stop()
 
 model_choice = st.sidebar.selectbox("Модель", model_list, index=0)
-topk         = st.sidebar.slider("Количество результатов", 1, 10, 5)
 
 with st.sidebar.expander("ℹО системе"):
     st.markdown(
@@ -79,7 +78,7 @@ with col_results:
                     st.error(f"API error {resp.status_code}: {resp.text}")
                     st.stop()
 
-                results = resp.json().get("results", [])[:topk]
+                results = resp.json().get("results", [])[:5]
 
             except requests.exceptions.RequestException as e:
                 st.error(f"Ошибка запроса к API: {e}")
