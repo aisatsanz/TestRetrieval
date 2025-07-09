@@ -22,7 +22,6 @@ def _first(glob_iter):
         raise FileNotFoundError(f"File not found for pattern: {glob_iter}")
     return files[0]
 
-# ------------------------------------------------------------------
 def load_model(name: str):
     """
     Возвращает: extractor, faiss_index, paths (np.ndarray[str]), meta (dict)
@@ -36,15 +35,13 @@ def load_model(name: str):
     if not model_dir.is_dir():
         raise FileNotFoundError(f"Модель '{name}' не найдена: {model_dir}")
 
-    # ---------- FAISS индекс --------------------------------------
+
     idx_path = _first(model_dir.glob("*.faiss"))
     index = faiss.read_index(str(idx_path))
 
-    # ---------- paths.npy -----------------------------------------
     paths_path = _first(model_dir.glob("*paths.npy"))
     paths = np.load(paths_path, allow_pickle=True)
 
-    # ---------- meta ----------------------------------------------
     meta_files = list(model_dir.glob("*meta.*"))
     if meta_files:
         meta_file = meta_files[0]
@@ -55,13 +52,12 @@ def load_model(name: str):
     else:
         meta = {"metric": "cosine", "input_size": 224}
 
-    # ---------- extractor -----------------------------------------
     ext_cls = EXTRACTOR_MAP[name]
     extractor = ext_cls()
     weight_files = list(model_dir.glob("*.pt")) + list(model_dir.glob("*.pth"))
     if weight_files and isinstance(extractor, torch.nn.Module):
        state_dict = torch.load(weight_files[0], map_location="cpu")
-       _ = extractor.load_state_dict(state_dict, strict=False)  # ignore missing keys
+       _ = extractor.load_state_dict(state_dict, strict=False) 
 
 
     if hasattr(extractor, "eval"):
