@@ -1,7 +1,7 @@
 dataset:
   root: "/kaggle/input/flowers-recognition/flowers"
   image_size: 224
-  num_workers: 2
+  num_workers: 0
 splits:
   train_ratio: 0.8
 training:
@@ -10,11 +10,24 @@ training:
   lr_backbone: 1e-4
   lr_head: 1e-3
 index:
-  ...
+  type: "hnsw"
+  metric: "cosine"
+  hnsw:
+    M: 32
+    ef_construction: 200
+    ef_search: 50
+  
 models:
   - resnet50
   - efficientnet_b0
   - clip_zeroshot
   - clip_finetune
   - metric_learning
+  - dinov2
 seed: 42
+verbose: true
+evaluation:
+  k: 5
+api:
+  host: "0.0.0.0"
+  port: 8000
