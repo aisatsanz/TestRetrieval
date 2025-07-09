@@ -1,6 +1,6 @@
 import yaml, faiss, torch, numpy as np, pathlib
 from src.extractors import ResNetExtractor, EfficientNetExtractor, \
-    MetricExtractor, DINOv2Extractor
+    FastMetricExtractor, DINOv2Extractor
 import json
 from pathlib import Path
 from src.mixin import FineTuneMixin, FeatureExtractor
@@ -12,7 +12,7 @@ MODELS_DIR  = ROOT / "models"
 EXTRACTOR_MAP = {
     "resnet50":        ResNetExtractor,
     "efficientnet_b0": EfficientNetExtractor,
-    "metric":          MetricExtractor,
+    "metric":          FastMetricExtractor,
     "dinov2":          DINOv2Extractor,
 }
 

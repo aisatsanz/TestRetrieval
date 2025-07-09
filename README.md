@@ -13,7 +13,7 @@
 | **mAP@5**               | 0.826    | 0.895           | 0.279            | 0.238             | 0.835           | 0.869   |
 
 > *Метрики рассчитаны на тестовой части Flowers Recognition (≈800×5 изображений). «–» означает отсутствие Precision@5 для Metric Learning.*
-
+![Пример UI](demo.png)
 ---
 
 ## Локальный запуск
@@ -41,7 +41,7 @@
 
 4. **Запустить API (FastAPI + Uvicorn)**  
    ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+   python3 -m app.main
    ```
    API будет доступно по адресу http://localhost:8080
 
@@ -50,7 +50,8 @@
    streamlit run improved_streamlit.py        --server.port 8501        --server.address 0.0.0.0
    ```
    Открыть веб-интерфейс: http://localhost:8501
-
+На UI может первый раз выдать нехватку времени при запуске поиска не успел пофиксить повторно нажать
+Лучшие модели: DINO, METRIC
 ---
 
 ## Запуск через Docker
