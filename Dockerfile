@@ -23,8 +23,9 @@ COPY . .
 RUN mkdir -p models app src
 
 # Открываем порты
-EXPOSE 8000 8501
+EXPOSE 8080 8501
 
 # Команда по умолчанию - запуск API
-CMD ["python", "simple_main.py"]
+CMD ["python3", "-m", "app.main"]
+
 

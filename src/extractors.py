@@ -1,4 +1,4 @@
-from pytorch_metric_learning import losses, miners
+from pytorch_metric_learning import losses, miners, samplers
 import torch.nn as nn
 import torch
 import timm
@@ -6,14 +6,16 @@ from torchvision import transforms
 import os
 import torch.nn.functional as F
 import sys
+import numpy as np
 from PIL import Image
 from tqdm import tqdm
+from torch.utils.data import Subset, DataLoader
+import faiss
 from .mixin import FineTuneMixin, FeatureExtractor
 from config import cfg
-from torch.utils.data import Subset, DataLoader
-
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class ResNetExtractor(FineTuneMixin, FeatureExtractor):
     def __init__(self, num_classes=5):
@@ -295,3 +297,102 @@ class DINOv2Extractor(FeatureExtractor):
         feats = F.normalize(feats, dim=-1)
         return feats.cpu().numpy().astype("float32")
 
+
+class FastMetricExtractor(nn.Module):
+    def __init__(self, embed_dim=512, n_classes=5):
+        super().__init__()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.backbone = timm.create_model("resnet50", pretrained=True, num_classes=0)
+        for name, p in self.backbone.named_parameters():
+            if not name.startswith("layer4"):       
+                p.requires_grad_(False)
+
+        self.embed = nn.Linear(self.backbone.num_features, embed_dim)
+        self.loss  = losses.ProxyAnchorLoss(n_classes, embed_dim).to(self.device)
+
+    def forward(self, x):
+        return self.backbone(x)
+
+
+    def fit(self, dl: DataLoader, *, epochs=5, lr_backbone=1e-5, lr_head=1e-4):
+
+        sampler = samplers.MPerClassSampler(dl.dataset, m=2,
+                                            length_before_new_iter=len(dl.dataset))
+        train_dl = DataLoader(dl.dataset,
+                              batch_size = cfg.training.batch_size,
+                              sampler    = sampler,
+                              num_workers= cfg.dataset.num_workers,
+                              drop_last  = True)
+
+
+        opt = torch.optim.AdamW([
+            {"params": self.embed.parameters(),                 "lr": lr_head},
+            {"params": filter(lambda p: p.requires_grad,
+                              self.backbone.parameters()),      "lr": lr_backbone},
+            {"params": self.loss.parameters(),                  "lr": lr_head}
+        ])
+
+        self.to(self.device)
+        best_map, best_state = 0., None
+
+        for ep in range(1, epochs + 1):
+            self.train()
+            loop = tqdm(train_dl, total=len(train_dl),
+                        desc=f"E{ep:02d} train", leave=False)
+
+            for x, y, _ in loop:
+                x, y = x.to(self.device), y.to(self.device)
+
+                opt.zero_grad()
+                emb  = F.normalize(self.embed(self.backbone(x)), dim=-1)
+                loss = self.loss(emb, y)
+                loss.backward()
+                opt.step()
+
+                loop.set_postfix(loss=f"{loss.item():.4f}")
+
+    
+            p5_val, map_val = self._quick_map(train_dl, k=5)
+            print(f"E{ep:02d}: P@5={p5_val:.3f} | mAP@5={map_val:.3f}")
+
+            if map_val > best_map:
+                best_map, best_state = map_val, {k: v.clone()
+                                                 for k, v in self.state_dict().items()}
+
+        self.load_state_dict(best_state)
+        print(f"✔ Best mAP={best_map:.3f}")
+
+
+    @torch.no_grad()
+    def _quick_map(self, dl, k: int = 5):
+        vecs, lbls = [], []
+        for x, y, _ in tqdm(dl, desc="encode val", leave=False):
+            z = F.normalize(self.embed(self.backbone(x.to(self.device))), dim=-1).cpu()
+            vecs.append(z); lbls.append(y)
+        vecs = torch.cat(vecs).numpy().astype("float32")
+        lbls = torch.cat(lbls).numpy()
+
+        faiss.normalize_L2(vecs)
+        index = faiss.IndexFlatIP(vecs.shape[1])
+        if faiss.get_num_gpus():
+            index = faiss.index_cpu_to_all_gpus(index)
+        index.add(vecs)
+
+        D, I = index.search(vecs, k)
+        rel  = (lbls[I] == lbls[:, None]).astype(int)
+
+        p_at_k = rel.sum(axis=1) / k
+        mean_p = float(p_at_k.mean())
+
+        precisions = rel.cumsum(1) / np.arange(1, k + 1)
+        map_k = float((precisions * rel).sum() / rel.sum())
+
+        return mean_p, map_k
+
+    @torch.no_grad()
+    def encode(self, x: torch.Tensor) -> np.ndarray:
+        self.eval()
+        x   = x.to(self.device, non_blocking=True)
+        emb = F.normalize(self.embed(self.backbone(x)), dim=-1)
+        return emb.cpu().numpy().astype("float32")

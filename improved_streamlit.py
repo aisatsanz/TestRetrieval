@@ -2,8 +2,9 @@ import streamlit as st
 from PIL import Image
 from io import BytesIO
 import requests, pathlib
+import os
 
-DEFAULT_API = "http://localhost:8080"
+DEFAULT_API = os.getenv("API_URL", "http://localhost:8080")
 ROOT_DIR    = pathlib.Path(__file__).resolve().parent
 MODELS_DIR  = ROOT_DIR / "models"
 
