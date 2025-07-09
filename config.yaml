@@ -3,7 +3,7 @@ dataset:
   image_size: 224
   num_workers: 0
 splits:
-  train_ratio: 0.8
+  training_ratio: 0.8
 training:
   batch_size: 32
   epochs: 15

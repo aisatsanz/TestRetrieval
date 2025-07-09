@@ -3,10 +3,17 @@ import torch.nn as nn
 import torch
 import timm
 from torchvision import transforms
+import os
+import torch.nn.functional as F
+import sys
 from PIL import Image
 from tqdm import tqdm
+from .mixin import FineTuneMixin, FeatureExtractor
+from config import cfg
+from torch.utils.data import Subset, DataLoader
 
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class ResNetExtractor(FineTuneMixin, FeatureExtractor):
     def __init__(self, num_classes=5):
@@ -41,7 +48,7 @@ class ResNetExtractor(FineTuneMixin, FeatureExtractor):
     @torch.no_grad()
     def encode(self, images):
         if isinstance(images, torch.Tensor):
-            feats = self.backbone.forward_features(images.cuda())
+            feats = self.backbone.forward_features(images.to(DEVICE))
             feats = self._pool(feats)
             return feats.cpu().numpy().astype('float32')
 
@@ -82,7 +89,8 @@ class EfficientNetExtractor(FineTuneMixin, FeatureExtractor):
     @torch.no_grad()
     def encode(self, images):
         if isinstance(images, torch.Tensor):
-            feats = self.backbone.forward_features(images.cuda())
+            images = images.to(DEVICE)
+            feats = self.backbone.forward_features(images)
             feats = self._pool(feats)
             return feats.cpu().numpy().astype('float32')
         
@@ -233,9 +241,10 @@ class MetricExtractor(nn.Module):
     def encode(self, images):
         """Возвращает numpy (B,D)"""
         if isinstance(images, torch.Tensor):
-            x = images.cuda()
+            x = images
         else:
-            x = torch.stack([clip_val_tf(Image.open(p).convert("RGB")) for p in images]).cuda()
+            x = torch.stack([clip_val_tf(Image.open(p).convert("RGB")) for p in images])
+        x = x.to(DEVICE)
 
         z = F.normalize(self.embed(self.backbone(x)), dim=-1)
         return z.cpu().numpy().astype("float32")
@@ -268,13 +277,21 @@ class DINOv2Extractor(FeatureExtractor):
     @torch.no_grad()
     def encode(self, images):
         if isinstance(images, torch.Tensor):
-            x = images.to(self.device)
-            if x.shape[-1] != self.IMG:
-                x = F.interpolate(x, size=self.IMG, mode="bicubic", align_corners=False)
-        else:
-            x = torch.stack([self.tf(Image.open(p).convert("RGB")) for p in images]).to(self.device)
+            x = images
+        else: 
+            pil = [Image.open(p).convert("RGB") for p in images]
+            x = torch.stack([self.tf(im) for im in pil])
+        x = x.to(DEVICE)
+        if isinstance(self.IMG, int):
+            target_size = (self.IMG, self.IMG)
+        else:                                         
+            target_size = self.IMG
 
-        feats = self.backbone(x)            # B * 768
+        if x.shape[-2:] != target_size:            
+            x = F.interpolate(x, size=target_size,
+                            mode="bicubic", align_corners=False)
+
+        feats = self.backbone(x)                       # B * D
         feats = F.normalize(feats, dim=-1)
         return feats.cpu().numpy().astype("float32")
 
