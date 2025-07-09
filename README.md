@@ -30,6 +30,6 @@
 | **Метод обучения**       | CrossEntropy| CrossEntropy    | —                | CrossEntropy (vision) | TripletLoss      |
 | **Индекс**               | FAISS HNSW  | FAISS HNSW      | FAISS HNSW       | FAISS HNSW| FAISS HNSW      |
 | **Precision@5**          | TBD         | TBD             | TBD              | TBD       | TBD             |
-| **Recall@5**             | TBD         | TBD             | TBD              | TBD       | TBD             |
+| **mAP@5**                | TBD         | TBD             | TBD              | TBD       | TBD             |
 | **Время отклика**        | TBD ms      | TBD ms          | TBD ms           | TBD ms    | TBD ms          |
 
